@@ -1,51 +1,78 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import datetime
+import requests
 
 # ---- Header ----
 st.title("🌦️ Dashboard Weather ML")
 st.subheader("Suivi des températures et prédictions avec Machine Learning")
 
-# ---- Filters ----
+# ---- Sidebar Filters ----
 st.sidebar.header("Filtres")
 selected_year = st.sidebar.selectbox("Année", [2023, 2024, 2025])
 selected_month = st.sidebar.selectbox("Mois", list(range(1, 13)))
 selected_day = st.sidebar.selectbox("Jour", list(range(1, 32)))
 
-# ---- KPIs ----
+# ---- API call ----
+API_URL = "http://159.89.179.82:8000/archive"
+params = {
+    "year": selected_year,
+    "month": selected_month,
+    "day": selected_day,
+    "page_size": 24  # fixe
+}
+
+try:
+    response = requests.get(API_URL, params=params)
+    response.raise_for_status()
+    result = response.json()
+    
+    # Charger les données dans DataFrame
+    data = pd.DataFrame(result['data'])
+    
+    # KPIs
+    kpis = result.get('kpis', {})
+    cloudy_days = kpis.get('cloudy_days', 0)
+    rainy_hours = kpis.get('rainy_hours', 0.0)
+    
+except Exception as e:
+    st.error(f"Erreur lors de la récupération des données API : {e}")
+    data = pd.DataFrame()
+    cloudy_days = 0
+    rainy_hours = 0.0
+
+# ---- Calcul de la précision du modèle ----
+if not data.empty and "temperature_actual" in data.columns and "predicted_temperature_2m" in data.columns:
+    # éviter division par zéro
+    mask = data["temperature_actual"] != 0
+    precision = ((1 - abs(data.loc[mask, "predicted_temperature_2m"] - data.loc[mask, "temperature_actual"]) / data.loc[mask, "temperature_actual"]).mean()) * 100
+    precision = round(precision, 2)
+else:
+    precision = None
+
+# ---- KPIs Display ----
 col1, col2, col3 = st.columns(3)
-col1.metric("🌧️ Heures de pluie", "42 h", "+5%")
-col2.metric("☁️ Jours nuageux", "120 j", "-3%")
-col3.metric("📈 Précision modèle", "92%", "+1%")
+col1.metric("🌧️ Heures de pluie", f"{rainy_hours} h")
+col2.metric("☁️ Jours nuageux", f"{cloudy_days} j")
+col3.metric("📈 Précision modèle", f"{precision}%" if precision is not None else "N/A")
 
-# ---- Simulated Temperature Data ----
-date_rng = pd.date_range(
-    start=datetime.datetime(selected_year, selected_month, 1),
-    periods=24,
-    freq="H"
-)
+# ---- Graph Display ----
+if not data.empty:
+    # S'assurer que les colonnes existent
+    for col in ["temperature_actual", "predicted_temperature_2m"]:
+        if col not in data.columns:
+            data[col] = None
 
-data = pd.DataFrame({
-    "datetime": date_rng,
-    "relative_humidity_2m": np.random.randint(50, 90, size=(24)),
-    "dew_point_2m": np.random.uniform(10, 20, size=(24)),
-    "wind_speed_10m": np.random.uniform(1, 5, size=(24)),
-    "wind_direction_10m": np.random.randint(0, 360, size=(24)),
-    "surface_pressure": np.random.uniform(1005, 1015, size=(24)),
-    "cloud_cover": np.random.randint(0, 100, size=(24)),
-    "precipitation": np.random.randint(0, 10, size=(24)),
-})
+    # Renommer pour affichage graphique
+    graph_df = data.rename(columns={"predicted_temperature_2m": "temperature_predicted"})
+    st.subheader("📈 Température réelle vs prédite")
+    st.line_chart(graph_df.set_index("time")[["temperature_actual", "temperature_predicted"]])
 
-# Ajout colonnes Actual vs Predicted
-data["temperature_actual"] = np.random.uniform(15, 30, size=(24))
-data["temperature_predicted"] = data["temperature_actual"] + np.random.normal(0, 1, size=(24))
+    # ---- Detailed Table ----
+    st.subheader("📊 Données horaires détaillées")
+    st.dataframe(data)
 
-# ---- Graph ----
-st.line_chart(data.set_index("datetime")[["temperature_actual", "temperature_predicted"]])
+else:
+    st.info("Aucune donnée disponible pour la sélection.")
 
-# ---- Table ----
-st.write("### 📊 Données horaires détaillées")
-st.dataframe(data)
 
 
