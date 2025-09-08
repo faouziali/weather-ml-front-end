@@ -8,7 +8,7 @@ st.subheader("Suivi des températures et prédictions avec Machine Learning")
 
 # ---- Sidebar Filters ----
 st.sidebar.header("Filtres")
-selected_year = st.sidebar.selectbox("Année", [2023, 2024, 2025])
+selected_year = st.sidebar.selectbox("Année", [2024,2025, 2026])
 selected_month = st.sidebar.selectbox("Mois", list(range(1, 13)))
 selected_day = st.sidebar.selectbox("Jour", list(range(1, 32)))
 
@@ -30,9 +30,9 @@ try:
     data = pd.DataFrame(result['data'])
     
     # KPIs
-    kpis = result.get('kpis', {})
-    cloudy_days = kpis.get('cloudy_days', 0)
-    rainy_hours = kpis.get('rainy_hours', 0.0)
+    kpis = result['kpis']
+    cloudy_days = float(kpis.get('cloudy_days', 0))
+    rainy_hours = int(kpis.get('rainy_hours', 0.0))
     
 except Exception as e:
     st.error(f"Erreur lors de la récupération des données API : {e}")
@@ -41,10 +41,10 @@ except Exception as e:
     rainy_hours = 0.0
 
 # ---- Calcul de la précision du modèle ----
-if not data.empty and "temperature_actual" in data.columns and "predicted_temperature_2m" in data.columns:
+if not data.empty and "temperature_2m" in data.columns and "predicted_temp" in data.columns:
     # éviter division par zéro
-    mask = data["temperature_actual"] != 0
-    precision = ((1 - abs(data.loc[mask, "predicted_temperature_2m"] - data.loc[mask, "temperature_actual"]) / data.loc[mask, "temperature_actual"]).mean()) * 100
+    mask = data["temperature_2m"] != 0
+    precision = ((1 - abs(data.loc[mask, "predicted_temp"] - data.loc[mask, "temperature_2m"]) / data.loc[mask, "temperature_2m"]).mean()) * 100
     precision = round(precision, 2)
 else:
     precision = None
@@ -58,14 +58,14 @@ col3.metric("📈 Précision modèle", f"{precision}%" if precision is not None 
 # ---- Graph Display ----
 if not data.empty:
     # S'assurer que les colonnes existent
-    for col in ["temperature_actual", "predicted_temperature_2m"]:
+    for col in ["temperature_2m", "predicted_temp"]:
         if col not in data.columns:
             data[col] = None
 
     # Renommer pour affichage graphique
-    graph_df = data.rename(columns={"predicted_temperature_2m": "temperature_predicted"})
+    graph_df = data.rename(columns={"predicted_temp": "temperature_predicted"})
     st.subheader("📈 Température réelle vs prédite")
-    st.line_chart(graph_df.set_index("time")[["temperature_actual", "temperature_predicted"]])
+    st.line_chart(graph_df.set_index("time")[["temperature_2m", "temperature_predicted"]])
 
     # ---- Detailed Table ----
     st.subheader("📊 Données horaires détaillées")
