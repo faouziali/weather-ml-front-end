@@ -8,7 +8,7 @@ st.subheader("Suivi des températures et prédictions avec Machine Learning")
 
 # ---- Sidebar Filters ----
 st.sidebar.header("Filtres")
-selected_year = st.sidebar.selectbox("Année", [2024,2025, 2026])
+selected_year = st.sidebar.selectbox("Année", [2025, 2026])
 selected_month = st.sidebar.selectbox("Mois", list(range(1, 13)))
 selected_day = st.sidebar.selectbox("Jour", list(range(1, 32)))
 
